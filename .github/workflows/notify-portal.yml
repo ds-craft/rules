@@ -1,0 +1,33 @@
+# main にpushされたら、ポータル(ds-craft/portal)に通知する。
+# ポータルのワークフローが通知を受けて、サブモジュールの参照先を進め、サイトをビルド・公開する。
+#
+# 通知には GitHub App のトークンを使う。リポジトリの設定(Settings → Secrets and variables → Actions)に
+#   変数 PORTAL_APP_ID           … App ID
+#   シークレット PORTAL_APP_PRIVATE_KEY … App の秘密鍵(.pem の中身)
+# を登録しておく。変数がない間は何もしない。
+name: ポータルに更新を通知
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  notify:
+    if: vars.PORTAL_APP_ID != ''
+    runs-on: ubuntu-latest
+    steps:
+      - id: app-token
+        uses: actions/create-github-app-token@v1
+        with:
+          app-id: ${{ vars.PORTAL_APP_ID }}
+          private-key: ${{ secrets.PORTAL_APP_PRIVATE_KEY }}
+          owner: ds-craft
+          repositories: portal
+
+      - name: ds-craft/portal に通知する
+        run: gh api repos/ds-craft/portal/dispatches -f event_type=rules-updated -f "client_payload[sha]=${GITHUB_SHA}"
+        env:
+          GH_TOKEN: ${{ steps.app-token.outputs.token }}
